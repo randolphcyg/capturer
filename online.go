@@ -12,7 +12,7 @@ package capturer
 */
 import "C"
 import (
-	"log"
+	"log/slog"
 	"unsafe"
 
 	"github.com/confluentinc/confluent-kafka-go/kafka"
@@ -20,65 +20,73 @@ import (
 )
 
 var P *kafka.Producer
+var kafkaChan chan *kafka.Message
 
-func init() {
-	var err error
-	P, err = kafka.NewProducer(&kafka.ConfigMap{"bootstrap.servers": "192.168.3.93:9092"})
-	if err != nil {
-		panic(err)
-		return
+// InitKafkaProducer 初始化 Kafka 生产者
+func InitKafkaProducer(addr string) error {
+	config := &kafka.ConfigMap{
+		"bootstrap.servers":        addr,
+		"message.send.max.retries": 3,
+		"compression.codec":        "snappy",
 	}
 
+	var err error
+	P, err = kafka.NewProducer(config)
+	if err != nil {
+		return err
+	}
+
+	kafkaChan = make(chan *kafka.Message, 10000) // 缓冲队列，减少阻塞
+	go kafkaWorker()                             // 启动 Kafka 生产者
+	slog.Info("Kafka producer init successfully")
+	return nil
 }
 
-// CChar2GoStr C string -> Go string
-func CChar2GoStr(src *C.char) string {
-	return C.GoStringN(src, C.int(C.strlen(src)))
+func kafkaWorker() {
+	for msg := range kafkaChan {
+		if err := P.Produce(msg, nil); err != nil {
+			slog.Error("Failed to send message to Kafka", "err", err)
+		}
+	}
 }
 
-// SetTimeWindow 设置时间窗口
-func SetTimeWindow(seconds int) {
-	C.set_time_window(C.int(seconds))
-}
+// SendToKafka 生产者 将dpdk抓到的包存储到kafka
+func SendToKafka(topic string, windowKey string, packet []byte) {
+	slog.Info("",
+		"windowKey", windowKey,
+		"len", len(packet))
 
-func produceToKafka(device string, windowKey string, packet []byte) {
-	topic := device
 	msg := &kafka.Message{
 		TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
 		Key:            []byte(windowKey), // 使用时间窗口作为 Key
 		Value:          packet,            // 直接存储二进制数据
 	}
 
-	if err := P.Produce(msg, nil); err != nil {
-		log.Printf("Failed to send message: %s", err)
+	select {
+	case kafkaChan <- msg: // 非阻塞写入通道
+	default:
+		slog.Warn("Kafka buffer is full, dropping packet")
 	}
 }
 
 //export GetDataCallback
 func GetDataCallback(data *C.char, length C.int, interfaceName *C.char, windowKey *C.char) {
 	if data == nil || length <= 0 {
-		log.Println("Received empty packet data")
+		slog.Info("Received empty packet data")
 		return
 	}
 
 	// 将 C 传来的数据转换为 Go 的 []byte
-	goPacket := C.GoBytes(unsafe.Pointer(data), length)
+	goPacket := unsafe.Slice((*byte)(unsafe.Pointer(data)), int(length))
 
-	interfaceNameStr := ""
-	if interfaceName != nil {
-		interfaceNameStr = C.GoString(interfaceName)
-	}
-
-	windowKeyStr := ""
-	if windowKey != nil {
-		windowKeyStr = C.GoString(windowKey)
-	}
+	interfaceNameStr := C.GoString(interfaceName)
+	windowKeyStr := C.GoString(windowKey)
 
 	// 发送到 Kafka
-	produceToKafka(interfaceNameStr, windowKeyStr, goPacket)
+	SendToKafka(interfaceNameStr, windowKeyStr, goPacket)
 }
 
-func StartLivePacketCapture(interfaceName, bpfFilter string, packetCount, promisc, timeout int) (err error) {
+func StartLivePacketCapture(interfaceName string, pciAddr string) (err error) {
 	// 回调函数
 	C.setDataCallback((C.DataCallback)(C.GetDataCallback))
 
@@ -87,14 +95,11 @@ func StartLivePacketCapture(interfaceName, bpfFilter string, packetCount, promis
 		return
 	}
 
-	errMsg := C.handle_packet(C.CString(interfaceName), C.CString(bpfFilter), C.int(packetCount),
-		C.int(promisc), C.int(timeout))
+	errMsg := C.handle_packet(C.CString(interfaceName), C.CString(pciAddr))
 	if C.strlen(errMsg) != 0 {
-		// transfer c char to go string
-		errMsgStr := CChar2GoStr(errMsg)
-		err = errors.Errorf("fail to capture packet live:%s", errMsgStr)
+		err = errors.Errorf("fail to capture packet live:%s", C.GoString(errMsg))
 		return
 	}
 
-	return
+	return nil
 }

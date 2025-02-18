@@ -1,19 +1,20 @@
 #include <cJSON.h>
-#include <stdio.h>
-
-#include <lib/eal/include/rte_eal.h>
 #include <lib/eal/include/rte_common.h>
-#include <lib/log/rte_log.h>
+#include <lib/eal/include/rte_eal.h>
 #include <lib/ethdev/rte_ethdev.h>
+#include <lib/log/rte_log.h>
 #include <lib/mbuf/rte_mbuf.h>
-
-void set_time_window(int seconds);
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/time.h>
+#include <uthash.h>
 
 // Capture and dissect packet in real time
-char *handle_packet(char *device_name, char *bpf_expr, int num, int promisc,
-                    int to_ms);
+char *handle_packet(char *device_name, const char *pci_addr);
 
 // Set up callback function for send packet to wrap layer
 typedef void (*DataCallback)(const char *, int, const char *, const char *);
-void GetDataCallback(char *data, int length, char *device_name, char *windowKey);
+void GetDataCallback(char *data, int length, char *device_name,
+                     char *windowKey);
 void setDataCallback(DataCallback callback);
