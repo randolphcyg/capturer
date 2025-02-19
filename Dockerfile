@@ -84,5 +84,10 @@ COPY --from=builder /usr/local/share/dpdk /usr/local/include/dpdk
 # 设置动态链接库路径
 ENV LD_LIBRARY_PATH=/usr/local/lib/x86_64-linux-gnu
 
+# 复制 CA 证书和时区信息
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+COPY --from=builder /usr/share/zoneinfo/Asia/Shanghai /usr/share/zoneinfo/Asia/Shanghai
+
+
 # 启动抓包服务
 ENTRYPOINT ["/app/capturer"]
