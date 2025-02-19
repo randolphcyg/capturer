@@ -1,0 +1,40 @@
+version: '3'
+services:
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    container_name: kafka
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      CLUSTER_ID: capture_and_parser
+      KAFKA_ENABLE_KRAFT: "true"  # 启用 KRaft 模式
+      KAFKA_BROKER_ID: 1
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:29092,CONTROLLER://0.0.0.0:9093  # 添加控制器监听器
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://192.168.3.93:9092,PLAINTEXT_HOST://kafka:29092  # 只包含 Broker 监听器
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      KAFKA_NUM_PARTITIONS: 6   # 设置默认分区数
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"  # 允许自动创建 Topic
+      KAFKA_ALLOW_EVERYONE_IF_NO_ACL_FOUND: "true"  # 允许所有人访问
+      KAFKA_PROCESS_ROLES: "broker,controller"  # 定义 Kafka 的角色
+      KAFKA_NODE_ID: 1  # 节点 ID
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka:9093"  # 控制器投票者
+      KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"  # 控制器监听器名称
+
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+
+  kafdrop:
+    image: obsidiandynamics/kafdrop:latest
+    container_name: kafdrop
+    ports:
+      - "9000:9000"
+    environment:
+      KAFKA_BROKERCONNECT: "kafka:9092"  # 确保 Kafdrop 连接 Kafka
+    depends_on:
+      - kafka
+
+volumes:
+  kafka_data:

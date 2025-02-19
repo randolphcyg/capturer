@@ -1,4 +1,10 @@
+docker-compose部署
+```shell
+docker-compose up -d
+docker-compose down
+```
 
+docker部署
 ```shell
 docker pull golang:1.24.0 --platform linux/amd64
 docker save -o golang-1.24.0.tar golang:1.24.0
@@ -12,13 +18,13 @@ sudo docker save capturer:1.0  | gzip > capturer_1_0.tar.gz
 docker load -i capturer_1_0.tar.gz
 
 # 运行
-docker run --rm -d --privileged \
+docker run -d --privileged \
     --name capturer \
     --cap-add=NET_ADMIN \
     --cap-add=SYS_ADMIN \
     --device=/dev/vfio \
     -v /dev/hugepages:/dev/hugepages \
     -e DPDK_HUGEPAGES=1G \
-    capturer:1.0 -- \
-    -i "ens66" -pic "0000:02:05.0" -kafka "192.168.3.93:9092"
+    capturer:1.0 \
+    -i "ens77" -pci "0000:02:05.0" -kafka "192.168.3.93:9092"
 ```

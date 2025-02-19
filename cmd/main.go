@@ -23,8 +23,7 @@ func main() {
 	defer cancel()
 
 	// 设置 Kafka 地址并初始化 Kafka 生产者
-	addr := kafkaAddr
-	if err := capturer.InitKafkaProducer(*addr); err != nil {
+	if err := capturer.InitKafkaProducer(*kafkaAddr); err != nil {
 		slog.Error("Failed to initialize Kafka producer", "info", err)
 		return
 	}
