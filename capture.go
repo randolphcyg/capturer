@@ -8,7 +8,7 @@ package capturer
 #cgo CFLAGS: -I${SRCDIR}/include/dpdk/lib/eal/include
 #cgo LDFLAGS: -L${SRCDIR}/lib -lrte_mempool -lrte_log -lrte_eal -lrte_ethdev -lrte_mbuf
 
-#include "online.h"
+#include "capture.h"
 */
 import "C"
 import (
@@ -97,7 +97,7 @@ func StartLivePacketCapture(interfaceName string, pciAddr string) (err error) {
 
 	errMsg := C.handle_packet(C.CString(interfaceName), C.CString(pciAddr))
 	if C.strlen(errMsg) != 0 {
-		err = errors.Errorf("fail to capture packet live:%s", C.GoString(errMsg))
+		err = errors.Errorf("fail to capture packet live:%v", C.GoString(errMsg))
 		return
 	}
 

@@ -1,4 +1,4 @@
-#include <online.h>
+#include <capture.h>
 
 #define ERRBUF_SIZE 256
 
