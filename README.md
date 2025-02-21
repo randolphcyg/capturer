@@ -28,3 +28,33 @@ docker run -d --privileged \
     capturer:1.0 \
     -i "ens77" -pci "0000:02:05.0" -kafka "192.168.3.93:9092"
 ```
+
+CGO + DPDK + Kafka 容器,docker镜像
+```shell
+1. 确保宿主机支持DPDK
+开启 Hugepages
+
+echo 1024 > /proc/sys/vm/nr_hugepages
+echo 2048 > /proc/sys/vm/nr_overcommit_hugepages
+mkdir -p /dev/hugepages
+mount -t hugetlbfs nodev /dev/hugepages
+
+使用 1G Hugepages（推荐高性能场景）：
+echo 8 > /sys/kernel/mm/hugepages/hugepages-1048576kB/nr_hugepages
+mount -t hugetlbfs nodev /dev/hugepages
+
+确保 Hugepages 永久生效，可以添加到 /etc/fstab：
+nodev /dev/hugepages hugetlbfs defaults 0 0
+
+2.绑定 DPDK 驱动
+modprobe vfio-pci
+echo "vfio-pci" > /sys/bus/pci/devices/0000:02:05.0/driver_override
+echo 0000:02:05.0 > /sys/bus/pci/drivers/vfio-pci/bind
+
+确定有哪些网卡
+lspci | grep Ethernet
+TODO: 适时增加网卡
+
+dpdk绑定情况
+dpdk-devbind.py --status
+```

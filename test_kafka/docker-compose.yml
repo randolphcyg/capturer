@@ -12,7 +12,7 @@ services:
       KAFKA_BROKER_ID: 1
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT,CONTROLLER:PLAINTEXT
       KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:29092,CONTROLLER://0.0.0.0:9093  # 添加控制器监听器
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://192.168.3.93:9092,PLAINTEXT_HOST://kafka:29092  # 只包含 Broker 监听器
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://192.168.11.71:9092,PLAINTEXT_HOST://kafka:29092  # 只包含 Broker 监听器
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_LOG_DIRS: /var/lib/kafka/data
       KAFKA_NUM_PARTITIONS: 6   # 设置默认分区数
@@ -22,17 +22,26 @@ services:
       KAFKA_NODE_ID: 1  # 节点 ID
       KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka:9093"  # 控制器投票者
       KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"  # 控制器监听器名称
+      # 添加默认的保留时间和保留大小配置
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 1
+      KAFKA_RETENTION_MS: 1209600000
+      KAFKA_RETENTION_BYTES: 10737418240
 
     volumes:
       - kafka_data:/var/lib/kafka/data
 
-  kafdrop:
-    image: obsidiandynamics/kafdrop:latest
-    container_name: kafdrop
+  control-center:
+    image: confluentinc/cp-enterprise-control-center:latest
+    container_name: control-center
     ports:
-      - "9000:9000"
+      - "9021:9021"
     environment:
-      KAFKA_BROKERCONNECT: "kafka:9092"  # 确保 Kafdrop 连接 Kafka
+      CONTROL_CENTER_BOOTSTRAP_SERVERS: 'kafka:29092'
+      CONTROL_CENTER_REPLICATION_FACTOR: 1
+      CONTROL_CENTER_INTERNAL_TOPICS_PARTITIONS: 1
+      CONTROL_CENTER_MONITORING_INTERCEPTOR_TOPIC_PARTITIONS: 1
+      CONFLUENT_METRICS_TOPIC_REPLICATION: 1
+      PORT: 9021
     depends_on:
       - kafka
 
