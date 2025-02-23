@@ -1,0 +1,59 @@
+version: "3"
+services:
+  kafka:
+    image: bitnami/kafka:latest  # 使用 bitnami Kafka 镜像
+    user: root
+    restart: unless-stopped
+    ports:
+      - "9092:9092"
+      - "9093:9093"
+      - "29092:29092"  # 添加 29092 端口
+    environment:
+      # ============== KRaft 核心配置 ==============
+      - KAFKA_ENABLE_KRAFT="true"  # 启用 KRaft 模式
+      - KAFKA_CFG_NODE_ID=1  # 设置唯一的 Broker ID
+      - KAFKA_CFG_PROCESS_ROLES=broker,controller  # 节点同时充当 broker 和 controller
+      - KAFKA_KRAFT_CLUSTER_ID="capture_and_parser"  # 集群 ID
+      - KAFKA_CONTROLLER_QUORUM_VOTERS=1@10.10.10.187:9093,2@10.10.10.190:9093  # 控制器的投票节点
+      - KAFKA_CONTROLLER_LISTENER_NAMES="CONTROLLER"  # 控制器监听器名称
+
+      # ============== 网络监听配置 ==============
+      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,PLAINTEXT_HOST://:29092,CONTROLLER://:9093  # 设置多个监听器
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://10.10.10.187:9092,PLAINTEXT_HOST://10.10.10.187:29092  # 广告地址
+      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT,CONTROLLER:PLAINTEXT  # 协议映射
+      - KAFKA_CFG_INTER_BROKER_LISTENER_NAME=PLAINTEXT  # 内部 broker 监听器名称
+      - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER  # 控制器监听器名称
+
+      # ============== 其他配置 ==============
+      - KAFKA_NUM_PARTITIONS=6  # 设置默认分区数
+      - KAFKA_AUTO_CREATE_TOPICS_ENABLE=true  # 允许自动创建 Topic
+      - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1  # 偏移量主题的副本因子
+      - KAFKA_DEFAULT_REPLICATION_FACTOR=1  # 默认副本因子
+      - KAFKA_LOG_RETENTION_MS=604800000  # 保留时间调整为 7 天（7 * 24 * 60 * 60 * 1000）
+      - KAFKA_LOG_RETENTION_BYTES=42949672960  # 保留大小调整为 40GB（40 * 1024 * 1024 * 1024）
+      - KAFKA_LOG_DIRS=/bitnami/kafka/data  # 日志存储路径
+      - TZ=Asia/Shanghai  # 设置时区为上海
+
+    volumes:
+      - /var/lib/kafka:/bitnami/kafka  # 挂载 Kafka 数据卷
+    networks:
+      - kafka_net
+
+  # Kafka UI 服务
+  kafka-ui:
+    image: provectuslabs/kafka-ui:master  # 使用 kafka-ui 镜像
+    container_name: kafka-ui
+    ports:
+      - "9000:8080"  # 配置 UI 端口
+    environment:
+      - KAFKA_CLUSTERS_0_NAME=capture_and_parser
+      - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=PLAINTEXT://10.10.10.187:9092  # 连接到 Kafka 集群
+      - TZ=Asia/Shanghai  # 设置时区为上海
+    depends_on:
+      - kafka
+    networks:
+      - kafka_net
+
+networks:
+  kafka_net:
+    driver: bridge

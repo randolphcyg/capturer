@@ -7,8 +7,12 @@ docker-compose down
 docker部署
 ```shell
 docker pull golang:1.24.0 --platform linux/amd64
-docker save -o golang-1.24.0.tar golang:1.24.0
-docker load -i golang-1.24.0.tar
+sudo docker save golang:1.24.0  | gzip > golang-1.24.0.tar.gz
+sudo docker load -i golang-1.24.0.tar.gz
+
+docker pull ubuntu:22.04 --platform linux/amd64
+sudo docker save ubuntu:22.04  | gzip > ubuntu-22.04.tar.gz
+sudo docker load -i ubuntu-22.04.tar.gz
 
 # 构建
 sudo docker build --platform linux/amd64 -t capturer:1.0 .
@@ -26,7 +30,7 @@ docker run -d --privileged \
     -v /dev/hugepages:/dev/hugepages \
     -e DPDK_HUGEPAGES=1G \
     capturer:1.0 \
-    -i "ens77" -pci "0000:02:05.0" -kafka "192.168.3.93:9092"
+    -i "ens77" -pci "0000:02:05.0" -kafka "10.10.10.187:9092"
 ```
 
 CGO + DPDK + Kafka 容器,docker镜像

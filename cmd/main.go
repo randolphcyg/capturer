@@ -12,8 +12,8 @@ import (
 )
 
 var ifName = flag.String("i", "ens33", "interface name")
-var pciAddr = flag.String("pci", "0000:02:05.0", "pci addr")
-var kafkaAddr = flag.String("kafka", "192.168.3.93:9092", "kafka address")
+var pciAddr = flag.String("pci", "0000:02:01.0", "pci addr")
+var kafkaAddr = flag.String("kafka", "10.10.10.187:9092", "kafka address")
 
 func main() {
 	flag.Parse()
