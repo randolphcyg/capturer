@@ -14,6 +14,21 @@ import (
 var ifName = flag.String("i", "ens33", "interface name")
 var pciAddr = flag.String("pci", "0000:02:01.0", "pci addr")
 var kafkaAddr = flag.String("kafka", "10.10.10.187:9092", "kafka address")
+var kafkaBatchSize = flag.Int("batchSize", 1000, "kafka 批量发送大小")
+var bufferSize = flag.Int("bufferSize", 10000, "缓冲队列大小")
+
+// waitForShutdown 等待退出信号
+func waitForShutdown(ctx context.Context) {
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	select {
+	case <-sigChan:
+		slog.Info("Received shutdown signal, shutting down...")
+	case <-ctx.Done():
+		slog.Info("Context canceled, shutting down...")
+	}
+}
 
 func main() {
 	flag.Parse()
@@ -23,10 +38,14 @@ func main() {
 	defer cancel()
 
 	// 设置 Kafka 地址并初始化 Kafka 生产者
-	if err := capturer.InitKafkaProducer(*kafkaAddr); err != nil {
+	topic := *ifName
+	if err := capturer.InitKafkaProducer(*kafkaAddr, topic, *kafkaBatchSize, *bufferSize); err != nil {
 		slog.Error("Failed to initialize Kafka producer", "info", err)
 		return
 	}
+
+	// 关闭 Kafka 生产者
+	defer capturer.CloseKafkaProducer()
 
 	// 启动抓包
 	err := capturer.StartLivePacketCapture(*ifName, *pciAddr)
@@ -35,19 +54,7 @@ func main() {
 	}
 
 	// 等待退出信号
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-
-	// 阻塞，直到接收到退出信号
-	select {
-	case <-sigChan:
-		slog.Info("Received shutdown signal, shutting down...")
-	case <-ctx.Done():
-		slog.Info("Context canceled, shutting down...")
-	}
-
-	// 关闭 Kafka 生产者
-	capturer.P.Close()
+	waitForShutdown(ctx)
 
 	slog.Info("Packet capture stopped, exiting...")
 }

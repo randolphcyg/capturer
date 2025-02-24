@@ -14,7 +14,6 @@
 char *handle_packet(char *device_name, const char *pci_addr);
 
 // Set up callback function for send packet to wrap layer
-typedef void (*DataCallback)(const char *, int, const char *, const char *);
-void GetDataCallback(char *data, int length, char *device_name,
-                     char *windowKey);
+typedef void (*DataCallback)(const char *, int, const char *);
+void GetDataCallback(char *data, int length, char *windowKey);
 void setDataCallback(DataCallback callback);

@@ -2,7 +2,7 @@
 
 #define ERRBUF_SIZE 256
 
-static bool process_packet(char *device_name, const struct rte_mbuf *mbuf,
+static bool process_packet(const struct rte_mbuf *mbuf,
                            const char *window_key);
 
 // Set up callback function for send packet to Go
@@ -103,7 +103,7 @@ int port_init(uint16_t port, struct rte_mempool *mbuf_pool) {
 }
 
 // 处理每个包
-static bool process_packet(char *device_name, const struct rte_mbuf *mbuf,
+static bool process_packet(const struct rte_mbuf *mbuf,
                            const char *window_key) {
   // 从 rte_mbuf 中提取数据包内容
   const u_char *packet = rte_pktmbuf_mtod(mbuf, const u_char *);
@@ -114,14 +114,14 @@ static bool process_packet(char *device_name, const struct rte_mbuf *mbuf,
 
   // 直接调用回调，将二进制数据传到 Go
   if (dataCallback != NULL) {
-    dataCallback((char *)packet, mbuf->data_len, device_name, window_key);
+    dataCallback((char *)packet, mbuf->data_len, window_key);
   }
 
   return true;
 }
 
 // dpdk抓包循环逻辑
-void dpdk_capture_loop(char *device_name) {
+void dpdk_capture_loop() {
   struct rte_mbuf *mbufs[32]; // 接收缓冲区
   uint16_t nb_rx;             // 接收到的数据包数量
   uint16_t port = 0;          // 使用单个端口
@@ -146,7 +146,7 @@ void dpdk_capture_loop(char *device_name) {
       struct rte_mbuf *mbuf = mbufs[i];
 
       // 处理数据包
-      if (!process_packet(device_name, mbuf, window_key)) {
+      if (!process_packet(mbuf, window_key)) {
         RTE_LOG(ERR, USER1, "Failed to process packet %d\n", i);
       }
 
@@ -180,7 +180,7 @@ char *handle_packet(char *device_name, const char *pci_addr) {
   printf("Start DPDK capture!\n");
 
   // Start capture loop
-  dpdk_capture_loop(device_name);
+  dpdk_capture_loop();
 
   return "";
 }

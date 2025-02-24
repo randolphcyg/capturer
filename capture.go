@@ -12,65 +12,87 @@ package capturer
 */
 import "C"
 import (
+	"context"
 	"log/slog"
+	"time"
 	"unsafe"
 
-	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"github.com/pkg/errors"
+	"github.com/segmentio/kafka-go"
 )
 
-var P *kafka.Producer
-var kafkaChan chan *kafka.Message
+var (
+	writer    *kafka.Writer
+	kafkaChan chan kafka.Message
+)
 
 // InitKafkaProducer 初始化 Kafka 生产者
-func InitKafkaProducer(addr string) error {
-	config := &kafka.ConfigMap{
-		"bootstrap.servers":        addr,
-		"message.send.max.retries": 3,
-		"compression.codec":        "snappy",
+func InitKafkaProducer(broker, topic string, kafkaBatchSize, bufferSize int) error {
+	if broker == "" {
+		return errors.New("kafka broker address is empty")
 	}
 
-	var err error
-	P, err = kafka.NewProducer(config)
-	if err != nil {
-		return err
+	// 配置 Kafka Writer
+	writer = &kafka.Writer{
+		Addr:         kafka.TCP(broker),   // Kafka 地址
+		Balancer:     &kafka.LeastBytes{}, // 分区负载均衡策略
+		Topic:        topic,
+		RequiredAcks: kafka.RequireAll,       // 需要所有副本确认
+		MaxAttempts:  3,                      // 最大重试次数
+		Compression:  kafka.Snappy,           // 压缩算法
+		BatchSize:    kafkaBatchSize,         // 批量发送大小
+		BatchTimeout: 100 * time.Millisecond, // 批量发送超时时间
+		Async:        true,                   // 异步发送
 	}
 
-	kafkaChan = make(chan *kafka.Message, 10000) // 缓冲队列，减少阻塞
-	go kafkaWorker()                             // 启动 Kafka 生产者
+	kafkaChan = make(chan kafka.Message, bufferSize) // 缓冲队列，减少阻塞
+	go kafkaWorker()                                 // 启动 Kafka 生产者
 	slog.Info("Kafka producer init successfully")
 	return nil
 }
 
+// kafkaWorker 从缓冲队列中读取消息并发送到 Kafka
 func kafkaWorker() {
 	for msg := range kafkaChan {
-		if err := P.Produce(msg, nil); err != nil {
+		if err := writer.WriteMessages(context.Background(), msg); err != nil {
 			slog.Error("Failed to send message to Kafka", "err", err)
 		}
 	}
 }
 
-// SendToKafka 生产者 将dpdk抓到的包存储到kafka
-func SendToKafka(topic string, windowKey string, packet []byte) {
-	slog.Info("",
-		"windowKey", windowKey,
-		"len", len(packet))
+// sendToKafka 生产者 将dpdk抓到的包存储到kafka
+func sendToKafka(key string, value []byte) error {
+	if writer == nil {
+		return errors.New("kafka producer is not initialized")
+	}
 
-	msg := &kafka.Message{
-		TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
-		Key:            []byte(windowKey), // 使用时间窗口作为 Key
-		Value:          packet,            // 直接存储二进制数据
+	msg := kafka.Message{
+		Key:   []byte(key), // 使用时间窗口作为 Key
+		Value: value,       // 直接存储二进制数据
 	}
 
 	select {
-	case kafkaChan <- msg: // 非阻塞写入通道
+	case kafkaChan <- msg: // 将消息放入缓冲队列
 	default:
 		slog.Warn("Kafka buffer is full, dropping packet")
 	}
+
+	return nil
+}
+
+// CloseKafkaProducer 关闭 Kafka 生产者
+func CloseKafkaProducer() {
+	close(kafkaChan) // 关闭通道
+	if writer != nil {
+		if err := writer.Close(); err != nil {
+			slog.Error("Failed to close Kafka writer", "err", err)
+		}
+	}
+	slog.Info("Kafka producer closed")
 }
 
 //export GetDataCallback
-func GetDataCallback(data *C.char, length C.int, interfaceName *C.char, windowKey *C.char) {
+func GetDataCallback(data *C.char, length C.int, windowKey *C.char) {
 	if data == nil || length <= 0 {
 		slog.Info("Received empty packet data")
 		return
@@ -79,23 +101,28 @@ func GetDataCallback(data *C.char, length C.int, interfaceName *C.char, windowKe
 	// 将 C 传来的数据转换为 Go 的 []byte
 	goPacket := unsafe.Slice((*byte)(unsafe.Pointer(data)), int(length))
 
-	interfaceNameStr := C.GoString(interfaceName)
 	windowKeyStr := C.GoString(windowKey)
 
+	slog.Info("",
+		"windowKey", windowKeyStr,
+		"len", int(length))
+
 	// 发送到 Kafka
-	SendToKafka(interfaceNameStr, windowKeyStr, goPacket)
+	if err := sendToKafka(windowKeyStr, goPacket); err != nil {
+		slog.Warn("Error: sendToKafka", "error", err)
+	}
 }
 
-func StartLivePacketCapture(interfaceName string, pciAddr string) (err error) {
+func StartLivePacketCapture(ifName string, pciAddr string) (err error) {
 	// 回调函数
 	C.setDataCallback((C.DataCallback)(C.GetDataCallback))
 
-	if interfaceName == "" {
+	if ifName == "" {
 		err = errors.Wrap(err, "device name is blank")
 		return
 	}
 
-	errMsg := C.handle_packet(C.CString(interfaceName), C.CString(pciAddr))
+	errMsg := C.handle_packet(C.CString(ifName), C.CString(pciAddr))
 	if C.strlen(errMsg) != 0 {
 		err = errors.Errorf("fail to capture packet live:%v", C.GoString(errMsg))
 		return
