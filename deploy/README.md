@@ -6,13 +6,23 @@
 kafka和web的镜像
 ```shell
 docker pull bitnami/kafka:latest --platform linux/amd64
-sudo docker save bitnami/kafka:latest  | gzip > kafka.tar.gz
+# 修改ubuntu22上镜像tag
+sudo docker tag bitnami/kafka:latest bitnami/kafka:latest-u22
+# 将原先tag变成 <none> 的在命名为bitnami/kafka:latest
+
+sudo docker save bitnami/kafka:latest-u22  | gzip > kafka.tar.gz
 sudo docker load -i kafka.tar.gz
 
 docker pull provectuslabs/kafka-ui:master --platform linux/amd64
-sudo docker save provectuslabs/kafka-ui:master  | gzip > kafka_ui.tar.gz
-sudo docker load -i kafka_ui.tar.gz
+# 修改ubuntu22上镜像tag
+sudo docker tag provectuslabs/kafka-ui:master provectuslabs/kafka-ui:master-u22
+# 将原先tag变成 <none> 的在命名为 provectuslabs/kafka-ui:master
+
+sudo docker save provectuslabs/kafka-ui:master-u22  | gzip > kafka-ui.tar.gz
+sudo docker load -i kafka-ui.tar.gz
 ```
+
+生产上kafka更新了ui没更新
 
 docker-compose部署
 ```shell

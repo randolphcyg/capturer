@@ -1,14 +1,16 @@
-docker-compose部署
+# capturer服务
+
+## 服务说明
 ```shell
-docker-compose up -d
-docker-compose down
+c的dpdk抓包,使用cgo回调,在go中将消息封装发到kafka，与pkt_parer服务成对使用。
+消息生产改在c中也ok的，这里为了省事在go中实现了。
 ```
 
-docker部署
+## docker部署
 ```shell
-docker pull golang:1.24.0 --platform linux/amd64
-sudo docker save golang:1.24.0  | gzip > golang-1.24.0.tar.gz
-sudo docker load -i golang-1.24.0.tar.gz
+docker pull golang:1.24.1 --platform linux/amd64
+sudo docker save golang:1.24.1  | gzip > golang-1.24.1.tar.gz
+sudo docker load -i golang-1.24.1.tar.gz
 
 docker pull ubuntu:22.04 --platform linux/amd64
 sudo docker save ubuntu:22.04  | gzip > ubuntu-22.04.tar.gz
@@ -33,7 +35,8 @@ docker run -d --privileged \
     -i "ens77" -pci "0000:02:05.0" -kafka "10.10.10.187:9092"
 ```
 
-CGO + DPDK + Kafka 容器,docker镜像
+## docker镜像
+CGO + DPDK + Kafka 容器
 ```shell
 1. 确保宿主机支持DPDK
 开启 Hugepages
@@ -61,4 +64,10 @@ TODO: 适时增加网卡
 
 dpdk绑定情况
 dpdk-devbind.py --status
+```
+
+## docker-compose部署
+```shell
+docker-compose up -d
+docker-compose down
 ```
